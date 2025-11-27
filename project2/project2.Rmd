@@ -1,0 +1,46 @@
+```{r}
+library(tseries)
+
+x = scan("/Users/wangjiayu/Desktop/time series/RESI.txt", what = "list")[-1]
+x = as.numeric(x)
+x = x[!is.na(x)]
+
+N = 1250
+
+log_arch0 <- -0.5* N * (1 + log(2*pi*mean(x^2)))
+AICc_arch0 <- -2 * log_arch0 + 2 * 2 * N / (N - 3)
+
+log_arch0
+AICc_arch0
+
+for (i in 1:10) {
+  model <- garch(x, c(0, i))    # Fit a GARCH(0,i) model
+  log_model <- logLik(model)    # Get the log-likelihood
+  AICc_model <- -2 * log_model + 2 * 2 * N / (N - 3)   # Compute AICc
+  print(log_model)              # Print log-likelihood
+  print(AICc_model)             # Print AICc
+}
+
+model <- garch(x,c(1,1))
+log_garch <- logLik(model)
+AICc_garch <- -2 * log_garch + 2 * 3 * N / (N - 4)
+
+log_garch
+AICc_garch
+summary(model)
+
+a0 <- coef(model)[1]
+a1 <- coef(model)[2]
+b1 <- coef(model)[3]
+
+unconditional_variance <- (a0 / (1 - a1 - b1))
+unconditional_variance
+
+model<- garch(x,c(1,1))
+ht <- model$fit[,1]^2
+
+write(ht, file = "htfile.txt", ncolumns = 1)
+setwd("/Users/wangjiayu/Desktop/time series")
+
+```
+

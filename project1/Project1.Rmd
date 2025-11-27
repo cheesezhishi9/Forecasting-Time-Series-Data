@@ -1,0 +1,145 @@
+```{r}
+library(ggplot2)
+data <- read.csv("PCEC_1.csv")
+
+data$observation_date <- as.Date(data$observation_date)
+
+ggplot(data, aes(x = observation_date, y = PCEC)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot", x = "Date", y = "PCEC") +
+  theme_minimal()
+
+```
+
+```{r}
+data$LogPCEC <- log(data$PCEC)
+ggplot(data, aes(x = observation_date, y = LogPCEC)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot", x = "Date", y = "LogPCEC") +
+  theme_minimal()
+acf(data$LogPCEC, main = "ACF of LogPCEC")
+pacf(data$LogPCEC, main = "PACF of LogPCEC")
+```
+
+```{r}
+diff_vals <- diff(data$LogPCEC)
+data_diff <- data[-1, ]  # Remove first row to match length
+data_diff$DiffLogPCEC <- diff_vals
+ggplot(data_diff, aes(x = observation_date, y = DiffLogPCEC)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot", x = "Date", y = "DiffLogPCEC") +
+  theme_minimal()
+
+acf(data_diff$DiffLogPCEC, main = "ACF of DiffLogPCEC")
+pacf(data_diff$DiffLogPCEC, main = "PACF of DiffLogPCEC")
+```
+
+```{r}
+library(forecast)
+ts_data <- ts(data$LogPCEC, start = c(1947, 1), frequency = 4)
+#auto.arima(ts_data, ic = "aicc", seasonal = FALSE,max.p = 20, max.q = 10)
+#auto.arima(ts_data, d = 1, ic = "aicc", allowdrift = FALSE, allowmean = FALSE,seasonal = FALSE,max.p = 20, max.q = 10)
+```
+
+```{r}
+model <- Arima(ts_data, order = c(2, 1, 4), include.drift = TRUE)
+resid <- residuals(model)
+coefs <- coef(model)
+se <- sqrt(diag(vcov(model)))
+
+# Compute z-scores and p-values
+z_vals <- coefs / se
+p_vals <- 2 * (1 - pnorm(abs(z_vals)))
+
+# Show result
+round(cbind(Estimate = coefs, `Std. Error` = se, `z value` = z_vals, `p value` = p_vals), 4)
+```{r, echo=FALSE}
+fitdf <- 4
+lags <- c(12, 24, 36, 48)
+
+cat(sprintf("%-5s %-12s %-5s %-10s\n", "Lag", "Statistic", "df", "p-value"))
+for (lag in lags) {
+  test <- Box.test(resid, lag = lag, type = "Ljung-Box", fitdf = fitdf)
+  cat(sprintf("%-5d %-12.6f %-5d %-10.6f\n", lag, test$statistic, test$parameter, test$p.value))
+}
+```
+
+}
+
+```
+
+```{r}
+acf(as.numeric(resid(model)), lag.max = 20, plot = TRUE, main = "ACF of Residuals")
+
+pacf(as.numeric(resid(model)), lag.max = 20, plot = TRUE, main = "PACF of Residuals")
+
+```
+
+```{r}
+# Normal Q-Q plot
+qqnorm(resid, pch = 16)
+qqline(resid, col = "red")
+
+# Residuals vs Fitted
+plot(fitted(model), resid,
+     main = "Residuals vs Fitted", xlab = "Fitted Values", ylab = "Residuals", pch = 16, xlim = c(0, max(fitted(model))))
+abline(h = 0, col = "red")
+
+# Histogram
+hist(resid, main = "Histogram of Residuals", xlab = "Residual", breaks = 30)
+
+# Residuals vs Order
+plot(resid, type = "p", main = "Residuals vs Observation Order", ylab = "Residual", pch = 16)
+abline(h = 0, col = "red")
+```
+
+```{r}
+forecast_horizon <- 50
+fc_1 <- forecast(model, h = forecast_horizon)
+plot(fc_1, main = "ARIMA Forecast of LogPCEC", xlab = "Year", ylab = "DiffLogPCEC")
+
+```
+
+```{r}
+ts_data <- ts(data$LogPCEC, start = c(1947, 2), frequency = 4)
+
+# 1. Truncate the series to include data up to 2011 Q2
+# This simulates what would have been known at that time
+ts_train <- window(ts_data, end = c(2011, 2))
+
+# 2. Fit ARIMA model to the truncated data
+model <- Arima(ts_train, order = c(2, 1, 1))
+
+# 3. Forecast from 2011 Q3 onward (h = number of steps ahead you want)
+forecast_horizon <- 50  # e.g., forecast next 8 quarters (2 years)
+fc <- forecast(model, h = forecast_horizon)
+
+# 4. Plot the full series, then overlay forecast
+autoplot(ts_data) +
+  autolayer(fc$mean, series = "Forecast", PI = FALSE) +
+  autolayer(fc$lower[,2], series = "Lower 95%", linetype = "dashed") +
+  autolayer(fc$upper[,2], series = "Upper 95%", linetype = "dashed") +
+  ggtitle("Simulated Forecast from 2011 Q2") +
+  xlab("Year") + ylab("LogPCEC") +
+  theme_minimal()
+```
+
+```{r}
+diff_diff_vals <- diff(data_diff$DiffLogPCEC)
+data_diff_diff <- data_diff[-1, ]  # Remove first row to match length
+data_diff_diff$DiffDiffLogPCEC <- diff_diff_vals
+ggplot(data_diff_diff, aes(x = observation_date, y = DiffDiffLogPCEC)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot", x = "Date", y = "DiffDiffLogPCEC") +
+  theme_minimal()
+
+acf(data_diff_diff$DiffDiffLogPCEC, main = "ACF of DiffDiffLogPCEC")
+pacf(data_diff_diff$DiffDiffLogPCEC, main = "PACF of DiffDiffLogPCEC")
+```
+
+```{r}
+ts_data <- ts(data$LogPCEC, start = c(1947, 1), frequency = 4)
+model <- Arima(ts_data, order = c(6, 1, 9),include.drift = TRUE)
+model$aicc
+```
+
